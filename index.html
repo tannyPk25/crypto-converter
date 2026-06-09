@@ -464,8 +464,6 @@ const FIATS = [
 ];
 const REFRESH_MS = 30_000;
 const API_BASE = "https://api.coingecko.com/api/v3";
-const CC_BASE  = "https://min-api.cryptocompare.com/data/v2";
-const SYMBOL_MAP = { bitcoin: "BTC", ethereum: "ETH", solana: "SOL" };
 
 /* ====== STATE ====== */
 let prices = null;      // { bitcoin: {usd, eur, ron, usd_24h_change, ...}, ... }
@@ -537,10 +535,7 @@ async function fetchPrices() {
 }
 
 async function fetchSparkline(coinId) {
-  // refolosește cache-ul de history (CryptoCompare) ca să nu mai facem apel separat
-  if (typeof histCache !== "undefined" && histCache[coinId + "-1"]) {
-    return histCache[coinId + "-1"].map(p => p[1]);
-  }
+  if (histCache[coinId + "-1"]) return histCache[coinId + "-1"].map(p => p[1]);
   const data = await loadHistory(coinId, 1);
   return data.map(p => p[1]);
 }
@@ -896,27 +891,15 @@ async function loadHistory(coinId, days) {
   const key = coinId + "-" + days;
   if (histCache[key]) return histCache[key];
 
-  const sym = SYMBOL_MAP[coinId];
-  if (!sym) throw new Error("Symbol necunoscut pentru " + coinId);
-
-  // CryptoCompare: histohour pentru intervale scurte, histoday pentru lungi
-  let endpoint, limit;
-  if (days <= 1)       { endpoint = "histohour"; limit = 24;  }
-  else if (days <= 7)  { endpoint = "histohour"; limit = 168; }
-  else if (days <= 30) { endpoint = "histoday";  limit = 30;  }
-  else                 { endpoint = "histoday";  limit = days; }
-
-  const url = `${CC_BASE}/${endpoint}?fsym=${sym}&tsym=USD&limit=${limit}`;
+  const url = `${API_BASE}/coins/${coinId}/market_chart?vs_currency=usd&days=${days}`;
   const data = await safeFetch(url);
 
-  if (data.Response !== "Success" || !data.Data || !data.Data.Data) {
-    throw new Error(data.Message || "CryptoCompare răspuns invalid");
+  if (!data.prices || !Array.isArray(data.prices)) {
+    throw new Error("Date invalide de la CoinGecko pentru " + coinId);
   }
-  const prices = data.Data.Data
-    .filter(p => p.close > 0)
-    .map(p => [p.time * 1000, p.close]); // [[ts_ms, price_usd], ...]
-  histCache[key] = prices;
-  return prices;
+  const result = data.prices.filter(p => p[1] > 0); // [[ts_ms, price_usd], ...]
+  histCache[key] = result;
+  return result;
 }
 
 function formatTick(ts, days) {
@@ -966,6 +949,8 @@ async function renderPerformance() {
     statusEl.textContent = "Eroare istoric: " + friendlyError(e);
     return;
   }
+
+  if (token !== perfRenderToken) return;
 
   // normalizează % față de start
   const datasets = [];
@@ -1166,13 +1151,17 @@ document.getElementById("perfRanges").addEventListener("click", (e) => {
 loadAll(true);
 refreshTimer = setInterval(() => loadAll(false), REFRESH_MS);
 
-// reîmprospăteaza sparklines o data la 5 minute
+// reîmprospătează sparklines la 5.5 minute (decalat față de grafic ca să nu fie apeluri simultane)
 setInterval(async () => {
+  CRYPTOS.forEach(c => { delete histCache[c.id + "-1"]; }); // invalidează cache sparkline
   for (const c of CRYPTOS) {
-    try { sparkData[c.id] = await fetchSparkline(c.id); } catch(e) {}
+    try {
+      await sleep(600);
+      sparkData[c.id] = await fetchSparkline(c.id);
+    } catch(e) {}
   }
   renderCards();
-}, 5 * 60_000);
+}, 5.5 * 60_000);
 </script>
 </body>
 </html>
