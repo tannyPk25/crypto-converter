@@ -4,6 +4,13 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Crypto Dashboard & Converter — BTC / ETH / SOL ↔ EUR / USD / RON</title>
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#0b0f1a" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="CryptoConverter" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root {
@@ -347,7 +354,7 @@
         <span class="dot loading" id="statusDot"></span>
         <span id="statusText">Se încarcă…</span>
       </div>
-      <button class="refresh" id="refreshBtn">↻ Refresh</button>
+      <button type="button" class="refresh" id="refreshBtn">↻ Refresh</button>
     </div>
   </header>
 
@@ -396,9 +403,9 @@
     <div class="split-rows" id="splitRows"></div>
 
     <div class="split-controls">
-      <button id="addSplitBtn">+ Adaugă alocare</button>
-      <button id="equalSplitBtn">Distribuie egal</button>
-      <button class="primary" id="normalizeBtn">Normalizează la 100%</button>
+      <button type="button" id="addSplitBtn">+ Adaugă alocare</button>
+      <button type="button" id="equalSplitBtn">Distribuie egal</button>
+      <button type="button" class="primary" id="normalizeBtn">Normalizează la 100%</button>
       <div class="split-total" id="splitTotalWrap">Total: <b id="splitTotal">100%</b></div>
     </div>
   </div>
@@ -408,11 +415,11 @@
   <div class="perf-wrap">
     <div class="perf-controls">
       <div class="range-group" id="perfRanges">
-        <button data-days="1">1D</button>
-        <button data-days="7" class="active">7D</button>
-        <button data-days="30">30D</button>
-        <button data-days="90">90D</button>
-        <button data-days="365">1A</button>
+        <button type="button" data-days="1">1D</button>
+        <button type="button" data-days="7" class="active">7D</button>
+        <button type="button" data-days="30">30D</button>
+        <button type="button" data-days="90">90D</button>
+        <button type="button" data-days="365">1A</button>
       </div>
       <div class="perf-status" id="perfStatus">—</div>
     </div>
@@ -1150,6 +1157,10 @@ document.getElementById("perfRanges").addEventListener("click", (e) => {
 
 loadAll(true);
 refreshTimer = setInterval(() => loadAll(false), REFRESH_MS);
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
 
 // reîmprospătează sparklines la 5.5 minute (decalat față de grafic ca să nu fie apeluri simultane)
 setInterval(async () => {
