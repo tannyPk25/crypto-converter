@@ -714,7 +714,7 @@ async function loadAll(initial = false) {
     renderCards();
     renderMatrix();
     renderConverter();
-    renderSplit();
+    updateSplitCalc();
     const now = new Date().toLocaleTimeString("ro-RO");
     setStatus("Live · ultima actualizare " + now, "");
   } catch (e) {
@@ -746,12 +746,13 @@ function getCurrencyMeta(key) {
   return ALL_CURRENCIES.find(x => x.key === key);
 }
 
-function renderSplit() {
+// Actualizează doar calculele și afișajele — fără să reconstruiască DOM-ul rândurilor
+function updateSplitCalc() {
   const amount = parseFloat(document.getElementById("splitAmount").value) || 0;
   const from   = document.getElementById("splitFrom").value;
   const usdTotal = getValueInUsd(from, amount);
 
-  // header — total source
+  // header
   const info = document.getElementById("splitSourceInfo");
   if (usdTotal != null) {
     info.textContent = "Valoare totală: " + fmt(usdTotal, "usd")
@@ -788,10 +789,11 @@ function renderSplit() {
   if (Math.abs(totalPct - 100) < 0.05) totalWrap.classList.add("ok");
   else if (totalPct > 100) totalWrap.classList.add("err");
 
-  // randuri
+  // actualizează valorile calculate din fiecare rând fără a atinge input-urile
   const rowsEl = document.getElementById("splitRows");
-  rowsEl.innerHTML = "";
   splits.forEach((s, idx) => {
+    const row = rowsEl.children[idx];
+    if (!row) return;
     const meta = getCurrencyMeta(s.key);
     const pctNum = parseFloat(s.pct) || 0;
     const allocUsd = usdTotal != null ? usdTotal * pctNum / 100 : null;
@@ -806,7 +808,21 @@ function renderSplit() {
         if (meta.fiat !== "usd") displaySub = "≈ " + fmt(allocUsd, "usd");
       }
     }
+    const valEl = row.querySelector(".split-result-val");
+    const subEl = row.querySelector(".split-result-sub");
+    if (valEl) valEl.textContent = displayVal;
+    if (subEl) subEl.textContent = displaySub;
+  });
 
+  schedulePerfRender();
+}
+
+// Reconstruiește complet rândurile (apelat doar la schimbări structurale)
+function renderSplit() {
+  const rowsEl = document.getElementById("splitRows");
+  rowsEl.innerHTML = "";
+  splits.forEach((s, idx) => {
+    const pctNum = parseFloat(s.pct) || 0;
     const row = document.createElement("div");
     row.className = "split-row";
     row.innerHTML = `
@@ -818,30 +834,18 @@ function renderSplit() {
       <input type="range" data-idx="${idx}" class="split-slider"
              value="${pctNum}" min="0" max="100" step="0.1" />
       <div class="split-result">
-        <div class="split-result-val">${displayVal}</div>
-        <div class="split-result-sub">${displaySub}</div>
+        <div class="split-result-val">—</div>
+        <div class="split-result-sub"></div>
       </div>
-      <button class="split-remove" data-idx="${idx}" title="Șterge">×</button>
+      <button type="button" class="split-remove" data-idx="${idx}" title="Șterge">×</button>
     `;
     rowsEl.appendChild(row);
   });
 
-  // listeners
+  // schimbarea monedei sau ștergerea → reconstruire completă
   rowsEl.querySelectorAll(".split-select").forEach(el => {
     el.addEventListener("change", e => {
       splits[+e.target.dataset.idx].key = e.target.value;
-      renderSplit();
-    });
-  });
-  rowsEl.querySelectorAll(".split-pct").forEach(el => {
-    el.addEventListener("input", e => {
-      splits[+e.target.dataset.idx].pct = parseFloat(e.target.value) || 0;
-      renderSplit();
-    });
-  });
-  rowsEl.querySelectorAll(".split-slider").forEach(el => {
-    el.addEventListener("input", e => {
-      splits[+e.target.dataset.idx].pct = parseFloat(e.target.value) || 0;
       renderSplit();
     });
   });
@@ -852,8 +856,27 @@ function renderSplit() {
     });
   });
 
-  // re-randam graficul de performanță (debounced pentru slider)
-  schedulePerfRender();
+  // procente și slider → doar recalculează, fără să reconstruiască DOM-ul
+  rowsEl.querySelectorAll(".split-pct").forEach(el => {
+    el.addEventListener("input", e => {
+      const idx = +e.target.dataset.idx;
+      splits[idx].pct = parseFloat(e.target.value) || 0;
+      const slider = rowsEl.querySelector(`.split-slider[data-idx="${idx}"]`);
+      if (slider) slider.value = splits[idx].pct;
+      updateSplitCalc();
+    });
+  });
+  rowsEl.querySelectorAll(".split-slider").forEach(el => {
+    el.addEventListener("input", e => {
+      const idx = +e.target.dataset.idx;
+      splits[idx].pct = parseFloat(e.target.value) || 0;
+      const pctInput = rowsEl.querySelector(`.split-pct[data-idx="${idx}"]`);
+      if (pctInput) pctInput.value = splits[idx].pct;
+      updateSplitCalc();
+    });
+  });
+
+  updateSplitCalc();
 }
 
 let perfDebounceTimer = null;
