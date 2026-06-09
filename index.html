@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Crypto Dashboard & Converter — BTC / ETH / SOL ↔ EUR / USD / RON</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --bg-elev: #131a2b;
+    --bg-elev-2: #1a2238;
+    --border: #243049;
+    --text: #e7ecf5;
+    --text-dim: #8a96b0;
+    --accent: #5b8def;
+    --green: #22c55e;
+    --red: #ef4444;
+    --btc: #f7931a;
+    --eth: #627eea;
+    --sol: #14f195;
+    --shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: radial-gradient(1200px 800px at 10% -10%, #1b2548 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px; margin-bottom: 24px;
+  }
+  header h1 {
+    margin: 0; font-size: 22px; letter-spacing: 0.2px;
+    background: linear-gradient(90deg, #fff 0%, #b9c8ea 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .status {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--text-dim);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .dot.loading { background: #facc15; box-shadow: 0 0 10px #facc15; animation: pulse 1s infinite; }
+  .dot.error { background: var(--red); box-shadow: 0 0 10px var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  button.refresh {
+    background: var(--bg-elev); color: var(--text); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 14px; cursor: pointer; font-size: 13px;
+    transition: all .15s ease;
+  }
+  button.refresh:hover { background: var(--bg-elev-2); border-color: var(--accent); }
+
+  .grid-cards {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 16px; margin-bottom: 28px;
+  }
+  @media (max-width: 860px) { .grid-cards { grid-template-columns: 1fr; } }
+
+  .card {
+    background: linear-gradient(180deg, var(--bg-elev) 0%, var(--bg-elev-2) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 18px;
+    box-shadow: var(--shadow);
+    position: relative; overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .coin-info { display: flex; align-items: center; gap: 10px; }
+  .coin-icon {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; color: #0b0f1a;
+  }
+  .coin-icon.btc { background: var(--btc); }
+  .coin-icon.eth { background: var(--eth); color: #fff; }
+  .coin-icon.sol { background: var(--sol); }
+  .coin-name { font-weight: 600; }
+  .coin-symbol { color: var(--text-dim); font-size: 12px; margin-top: 2px; }
+
+  .change {
+    font-size: 13px; font-weight: 600;
+    padding: 4px 8px; border-radius: 8px;
+  }
+  .change.up { color: var(--green); background: rgba(34,197,94,.12); }
+  .change.down { color: var(--red); background: rgba(239,68,68,.12); }
+
+  .price-main {
+    font-size: 28px; font-weight: 700; letter-spacing: -0.5px;
+    margin: 4px 0 2px;
+  }
+  .price-sub {
+    color: var(--text-dim); font-size: 13px;
+    display: flex; flex-wrap: wrap; gap: 12px;
+    margin-bottom: 12px;
+  }
+  .spark-wrap { height: 60px; margin-top: 4px; }
+
+  .section-title {
+    font-size: 14px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--text-dim); margin: 0 0 12px 4px;
+  }
+
+  /* CONVERTOR */
+  .converter {
+    background: linear-gradient(180deg, var(--bg-elev) 0%, var(--bg-elev-2) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px;
+    margin-bottom: 28px; box-shadow: var(--shadow);
+  }
+  .conv-row {
+    display: grid; grid-template-columns: 1fr 160px;
+    gap: 10px; margin-bottom: 16px;
+  }
+  .conv-input, .conv-select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 14px 14px;
+    font-size: 18px;
+    width: 100%;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .conv-input:focus, .conv-select:focus { border-color: var(--accent); }
+  .conv-select { font-size: 16px; cursor: pointer; }
+  .conv-results {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .result-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .result-label { font-size: 11px; text-transform: uppercase; color: var(--text-dim); letter-spacing: 1px; }
+  .result-value { font-size: 18px; font-weight: 600; margin-top: 4px; word-break: break-all; }
+
+  /* MATRICE */
+  .matrix-wrap {
+    background: linear-gradient(180deg, var(--bg-elev) 0%, var(--bg-elev-2) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px;
+    box-shadow: var(--shadow); overflow-x: auto;
+  }
+  table.matrix {
+    width: 100%; border-collapse: collapse; min-width: 500px;
+  }
+  table.matrix th, table.matrix td {
+    padding: 12px 14px; text-align: right;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  table.matrix th:first-child, table.matrix td:first-child {
+    text-align: left;
+  }
+  table.matrix th {
+    color: var(--text-dim); font-weight: 500;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+  }
+  table.matrix tr:last-child td { border-bottom: none; }
+  table.matrix td.coin-cell {
+    display: flex; align-items: center; gap: 10px; font-weight: 600;
+  }
+  table.matrix .mini-icon {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #0b0f1a;
+  }
+  table.matrix .mini-icon.eth { color: #fff; }
+
+  footer {
+    text-align: center; color: var(--text-dim); font-size: 12px;
+    margin-top: 24px;
+  }
+  .skeleton { color: var(--text-dim); opacity: .5; }
+
+  /* SPLIT */
+  .splitter {
+    background: linear-gradient(180deg, var(--bg-elev) 0%, var(--bg-elev-2) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px;
+    margin-bottom: 28px; box-shadow: var(--shadow);
+  }
+  .split-source {
+    display: grid; grid-template-columns: 1fr 160px;
+    gap: 10px; margin-bottom: 14px;
+  }
+  .split-source-info {
+    color: var(--text-dim); font-size: 13px;
+    margin: -6px 0 14px; padding-left: 4px;
+  }
+  .split-bar {
+    display: flex; height: 14px; border-radius: 8px; overflow: hidden;
+    background: var(--bg); margin-bottom: 16px;
+    border: 1px solid var(--border);
+  }
+  .split-bar-seg { transition: width .2s ease; }
+  .split-bar-empty { background: var(--bg); flex: 1; }
+
+  .split-rows { display: flex; flex-direction: column; gap: 10px; }
+  .split-row {
+    display: grid;
+    grid-template-columns: 150px 100px 1fr auto;
+    gap: 10px; align-items: center;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  .split-row select, .split-row input[type="number"] {
+    background: var(--bg-elev); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px;
+    font-size: 14px; outline: none;
+  }
+  .split-row input[type="range"] {
+    width: 100%; accent-color: var(--accent);
+  }
+  .split-result {
+    display: flex; flex-direction: column; align-items: flex-end;
+    min-width: 140px;
+  }
+  .split-result-val { font-weight: 600; font-size: 15px; }
+  .split-result-sub { font-size: 11px; color: var(--text-dim); }
+  .split-remove {
+    background: transparent; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 8px;
+    width: 32px; height: 32px; cursor: pointer; font-size: 16px;
+    transition: all .15s;
+  }
+  .split-remove:hover { color: var(--red); border-color: var(--red); }
+
+  .split-controls {
+    display: flex; align-items: center; gap: 10px; margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .split-controls button {
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; font-size: 13px;
+    transition: all .15s;
+  }
+  .split-controls button:hover { border-color: var(--accent); }
+  .split-controls button.primary {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  .split-controls button.primary:hover { filter: brightness(1.1); }
+  .split-total {
+    margin-left: auto; font-size: 14px; color: var(--text-dim);
+  }
+  .split-total b { color: var(--text); }
+  .split-total.ok b { color: var(--green); }
+  .split-total.err b { color: var(--red); }
+
+  @media (max-width: 720px) {
+    .split-row {
+      grid-template-columns: 1fr 1fr auto;
+      grid-template-areas: "sel pct rem" "slider slider slider" "res res res";
+    }
+    .split-row select { grid-area: sel; }
+    .split-row input[type="number"] { grid-area: pct; }
+    .split-row input[type="range"] { grid-area: slider; }
+    .split-result { grid-area: res; align-items: flex-start; }
+    .split-remove { grid-area: rem; }
+  }
+
+  /* PERF CHART */
+  .perf-wrap {
+    background: linear-gradient(180deg, var(--bg-elev) 0%, var(--bg-elev-2) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px;
+    margin-bottom: 28px; box-shadow: var(--shadow);
+  }
+  .perf-controls {
+    display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
+    align-items: center;
+  }
+  .perf-controls .range-group { display: flex; gap: 4px; }
+  .perf-controls button {
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text-dim); padding: 6px 14px; border-radius: 8px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all .15s;
+  }
+  .perf-controls button:hover { color: var(--text); border-color: var(--accent); }
+  .perf-controls button.active {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  .perf-status {
+    margin-left: auto; font-size: 12px; color: var(--text-dim);
+  }
+  .perf-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px; margin-bottom: 16px;
+  }
+  .perf-stat {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+    border-left: 4px solid var(--text-dim);
+  }
+  .perf-stat-name {
+    font-size: 11px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .perf-stat-val {
+    font-size: 20px; font-weight: 700; margin-top: 4px;
+  }
+  .perf-stat-val.up { color: var(--green); }
+  .perf-stat-val.down { color: var(--red); }
+  .perf-stat-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .perf-stat.portfolio {
+    background: linear-gradient(135deg, #1f2a44, #2a3a5e);
+    border-left-color: #fff;
+  }
+  .perf-stat.best  { box-shadow: 0 0 0 1px rgba(34,197,94,.4); }
+  .perf-stat.worst { box-shadow: 0 0 0 1px rgba(239,68,68,.4); }
+  .perf-stat .badge {
+    display: inline-block; font-size: 9px; padding: 1px 5px;
+    border-radius: 4px; margin-left: 6px; font-weight: 700;
+    vertical-align: middle;
+  }
+  .perf-stat .badge.best  { background: var(--green); color: #061b0d; }
+  .perf-stat .badge.worst { background: var(--red);   color: #2b0708; }
+
+  .perf-chart-wrap { height: 360px; position: relative; }
+  .perf-empty {
+    text-align: center; padding: 40px 20px; color: var(--text-dim);
+    border: 1px dashed var(--border); border-radius: 10px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Crypto Dashboard &amp; Convertor</h1>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="status">
+        <span class="dot loading" id="statusDot"></span>
+        <span id="statusText">Se încarcă…</span>
+      </div>
+      <button class="refresh" id="refreshBtn">↻ Refresh</button>
+    </div>
+  </header>
+
+  <!-- CARDURI DASHBOARD -->
+  <div class="grid-cards" id="cards">
+    <!-- generate prin JS -->
+  </div>
+
+  <!-- CONVERTOR -->
+  <h2 class="section-title">Convertor</h2>
+  <div class="converter">
+    <div class="conv-row">
+      <input type="number" class="conv-input" id="convAmount" value="1" step="any" min="0" placeholder="Sumă" />
+      <select class="conv-select" id="convFrom" title="Monedă sursă convertor" aria-label="Monedă sursă convertor">
+        <option value="bitcoin">BTC — Bitcoin</option>
+        <option value="ethereum">ETH — Ethereum</option>
+        <option value="solana">SOL — Solana</option>
+        <option value="usd">USD — Dolar SUA</option>
+        <option value="eur">EUR — Euro</option>
+        <option value="ron">RON — Leu Românesc</option>
+      </select>
+    </div>
+    <div class="conv-results" id="convResults">
+      <!-- generate prin JS -->
+    </div>
+  </div>
+
+  <!-- SPLIT (împărțire în procente) -->
+  <h2 class="section-title" style="margin-top:28px;">Împărțire pe procente</h2>
+  <div class="splitter">
+    <div class="split-source">
+      <input type="number" class="conv-input" id="splitAmount" value="1" step="any" min="0" placeholder="Sumă de împărțit" />
+      <select class="conv-select" id="splitFrom" title="Monedă sursă împărțire" aria-label="Monedă sursă împărțire">
+        <option value="bitcoin">BTC — Bitcoin</option>
+        <option value="ethereum">ETH — Ethereum</option>
+        <option value="solana">SOL — Solana</option>
+        <option value="usd">USD — Dolar SUA</option>
+        <option value="eur">EUR — Euro</option>
+        <option value="ron">RON — Leu Românesc</option>
+      </select>
+    </div>
+    <div class="split-source-info" id="splitSourceInfo">Valoare totală: —</div>
+
+    <div class="split-bar" id="splitBar"></div>
+
+    <div class="split-rows" id="splitRows"></div>
+
+    <div class="split-controls">
+      <button id="addSplitBtn">+ Adaugă alocare</button>
+      <button id="equalSplitBtn">Distribuie egal</button>
+      <button class="primary" id="normalizeBtn">Normalizează la 100%</button>
+      <div class="split-total" id="splitTotalWrap">Total: <b id="splitTotal">100%</b></div>
+    </div>
+  </div>
+
+  <!-- GRAFIC PERFORMANTA SPLIT -->
+  <h2 class="section-title" style="margin-top:28px;">Performanță alocare în timp</h2>
+  <div class="perf-wrap">
+    <div class="perf-controls">
+      <div class="range-group" id="perfRanges">
+        <button data-days="1">1D</button>
+        <button data-days="7" class="active">7D</button>
+        <button data-days="30">30D</button>
+        <button data-days="90">90D</button>
+        <button data-days="365">1A</button>
+      </div>
+      <div class="perf-status" id="perfStatus">—</div>
+    </div>
+    <div class="perf-stats" id="perfStats"></div>
+    <div class="perf-chart-wrap">
+      <canvas id="perfChart"></canvas>
+      <div class="perf-empty" id="perfEmpty" style="display:none;">
+        Adaugă cel puțin o monedă crypto în split pentru a vedea graficul de performanță.
+      </div>
+    </div>
+  </div>
+
+  <!-- MATRICE PRETURI -->
+  <h2 class="section-title" style="margin-top:28px;">Tabel prețuri (1 unitate)</h2>
+  <div class="matrix-wrap">
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>Monedă</th>
+          <th>USD</th>
+          <th>EUR</th>
+          <th>RON</th>
+          <th>24h %</th>
+        </tr>
+      </thead>
+      <tbody id="matrixBody">
+        <!-- generate prin JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    Prețuri: <a href="https://www.coingecko.com/" target="_blank" rel="noopener noreferrer" style="color:var(--text-dim);">CoinGecko</a> · Istoric: <a href="https://www.cryptocompare.com/" target="_blank" rel="noopener noreferrer" style="color:var(--text-dim);">CryptoCompare</a> · Auto-refresh la 30 secunde
+  </footer>
+
+</div>
+
+<script>
+/* ====== CONFIG ====== */
+const CRYPTOS = [
+  { id: "bitcoin",  symbol: "BTC", name: "Bitcoin",  color: "btc", short: "₿" },
+  { id: "ethereum", symbol: "ETH", name: "Ethereum", color: "eth", short: "Ξ" },
+  { id: "solana",   symbol: "SOL", name: "Solana",   color: "sol", short: "S" },
+];
+const FIATS = [
+  { code: "usd", symbol: "$",   name: "USD" },
+  { code: "eur", symbol: "€",   name: "EUR" },
+  { code: "ron", symbol: "lei", name: "RON" },
+];
+const REFRESH_MS = 30_000;
+const API_BASE = "https://api.coingecko.com/api/v3";
+const CC_BASE  = "https://min-api.cryptocompare.com/data/v2";
+const SYMBOL_MAP = { bitcoin: "BTC", ethereum: "ETH", solana: "SOL" };
+
+/* ====== STATE ====== */
+let prices = null;      // { bitcoin: {usd, eur, ron, usd_24h_change, ...}, ... }
+let sparkData = {};     // { bitcoin: [..72 points..], ... }
+let charts = {};
+let refreshTimer = null;
+
+/* ====== UTILS ====== */
+const fmt = (val, currency) => {
+  if (val == null || isNaN(val)) return "—";
+  const opts = { maximumFractionDigits: 2, minimumFractionDigits: 2 };
+  if (val < 1)   opts.maximumFractionDigits = 6;
+  if (val < 0.01) opts.maximumFractionDigits = 8;
+  const num = new Intl.NumberFormat("ro-RO", opts).format(val);
+  if (currency === "usd") return "$" + num;
+  if (currency === "eur") return "€" + num;
+  if (currency === "ron") return num + " lei";
+  return num + " " + currency.toUpperCase();
+};
+const fmtCrypto = (val, symbol) => {
+  if (val == null || isNaN(val)) return "—";
+  const opts = { maximumFractionDigits: 8 };
+  if (val >= 1)    opts.maximumFractionDigits = 6;
+  if (val >= 1000) opts.maximumFractionDigits = 2;
+  return new Intl.NumberFormat("ro-RO", opts).format(val) + " " + symbol;
+};
+const setStatus = (text, state) => {
+  document.getElementById("statusText").textContent = text;
+  const dot = document.getElementById("statusDot");
+  dot.className = "dot" + (state ? " " + state : "");
+};
+
+/* ====== FETCH cu retry + backoff ====== */
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function safeFetch(url, retries = 3) {
+  let lastErr;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const r = await fetch(url);
+      if (r.status === 429) {
+        // rate limit — așteaptă progresiv mai mult
+        await sleep(2000 * (i + 1));
+        continue;
+      }
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return await r.json();
+    } catch (e) {
+      lastErr = e;
+      if (i < retries - 1) await sleep(1200 * (i + 1));
+    }
+  }
+  throw lastErr || new Error("Fetch failed");
+}
+
+function friendlyError(e) {
+  const m = (e && e.message) || "Eroare necunoscută";
+  if (m.includes("Failed to fetch")) return "Rețea blocată sau API rate-limited (CoinGecko free tier). Așteaptă ~1 min și apasă Refresh.";
+  if (m.includes("HTTP 429")) return "Limită API atinsă. Așteaptă 1 minut.";
+  if (m.startsWith("HTTP 5"))  return "CoinGecko nu răspunde. Încearcă mai târziu.";
+  return m;
+}
+
+async function fetchPrices() {
+  const ids = CRYPTOS.map(c => c.id).join(",");
+  const vs  = FIATS.map(f => f.code).join(",");
+  const url = `${API_BASE}/simple/price?ids=${ids}&vs_currencies=${vs}&include_24hr_change=true&include_last_updated_at=true`;
+  return await safeFetch(url);
+}
+
+async function fetchSparkline(coinId) {
+  // refolosește cache-ul de history (CryptoCompare) ca să nu mai facem apel separat
+  if (typeof histCache !== "undefined" && histCache[coinId + "-1"]) {
+    return histCache[coinId + "-1"].map(p => p[1]);
+  }
+  const data = await loadHistory(coinId, 1);
+  return data.map(p => p[1]);
+}
+
+/* ====== RENDER CARDS ====== */
+function renderCards() {
+  const container = document.getElementById("cards");
+  container.innerHTML = "";
+  CRYPTOS.forEach(c => {
+    const p = prices?.[c.id];
+    const change = p?.usd_24h_change ?? 0;
+    const upDown = change >= 0 ? "up" : "down";
+    const arrow  = change >= 0 ? "▲" : "▼";
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="card-head">
+        <div class="coin-info">
+          <div class="coin-icon ${c.color}">${c.short}</div>
+          <div>
+            <div class="coin-name">${c.name}</div>
+            <div class="coin-symbol">${c.symbol}</div>
+          </div>
+        </div>
+        <div class="change ${upDown}">${arrow} ${Math.abs(change).toFixed(2)}%</div>
+      </div>
+      <div class="price-main">${fmt(p?.usd, "usd")}</div>
+      <div class="price-sub">
+        <span>${fmt(p?.eur, "eur")}</span>
+        <span>${fmt(p?.ron, "ron")}</span>
+      </div>
+      <div class="spark-wrap"><canvas id="spark-${c.id}"></canvas></div>
+    `;
+    container.appendChild(card);
+  });
+
+  // grafice sparkline
+  CRYPTOS.forEach(c => {
+    const data = sparkData[c.id];
+    if (!data || data.length === 0) return;
+    const ctx = document.getElementById("spark-" + c.id);
+    if (!ctx) return;
+    if (charts[c.id]) charts[c.id].destroy();
+    const up = data[data.length - 1] >= data[0];
+    const color = up ? "#22c55e" : "#ef4444";
+    charts[c.id] = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: data.map((_, i) => i),
+        datasets: [{
+          data,
+          borderColor: color,
+          backgroundColor: color + "22",
+          borderWidth: 2,
+          tension: 0.3,
+          fill: true,
+          pointRadius: 0,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false } },
+        elements: { point: { radius: 0 } },
+        animation: { duration: 300 },
+      },
+    });
+  });
+}
+
+/* ====== RENDER MATRIX ====== */
+function renderMatrix() {
+  const body = document.getElementById("matrixBody");
+  body.innerHTML = "";
+  CRYPTOS.forEach(c => {
+    const p = prices?.[c.id];
+    const change = p?.usd_24h_change ?? 0;
+    const upDown = change >= 0 ? "up" : "down";
+    const arrow  = change >= 0 ? "▲" : "▼";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="coin-cell">
+        <span class="mini-icon ${c.color}">${c.short}</span>
+        <span>${c.symbol}</span>
+      </td>
+      <td>${fmt(p?.usd, "usd")}</td>
+      <td>${fmt(p?.eur, "eur")}</td>
+      <td>${fmt(p?.ron, "ron")}</td>
+      <td><span class="change ${upDown}">${arrow} ${Math.abs(change).toFixed(2)}%</span></td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+/* ====== CONVERTOR ====== */
+function getValueInUsd(currency, amount) {
+  // currency e fie id crypto, fie cod fiat
+  if (!prices) return null;
+  const crypto = CRYPTOS.find(c => c.id === currency);
+  if (crypto) return amount * prices[crypto.id].usd;
+  // fiat
+  if (currency === "usd") return amount;
+  // pentru EUR/RON, calculam rata din pretul BTC (1 BTC = X usd = Y eur => 1 eur = X/Y usd)
+  const btc = prices.bitcoin;
+  if (!btc) return null;
+  if (currency === "eur") return amount * (btc.usd / btc.eur);
+  if (currency === "ron") return amount * (btc.usd / btc.ron);
+  return null;
+}
+
+function convertFromUsd(usdValue, target) {
+  if (usdValue == null || !prices) return null;
+  const crypto = CRYPTOS.find(c => c.id === target);
+  if (crypto) return usdValue / prices[crypto.id].usd;
+  if (target === "usd") return usdValue;
+  const btc = prices.bitcoin;
+  if (target === "eur") return usdValue * (btc.eur / btc.usd);
+  if (target === "ron") return usdValue * (btc.ron / btc.usd);
+  return null;
+}
+
+function renderConverter() {
+  const amount = parseFloat(document.getElementById("convAmount").value) || 0;
+  const from   = document.getElementById("convFrom").value;
+  const usdVal = getValueInUsd(from, amount);
+  const container = document.getElementById("convResults");
+  container.innerHTML = "";
+
+  const allTargets = [
+    ...CRYPTOS.map(c => ({ key: c.id, label: c.symbol, isCrypto: true, symbol: c.symbol })),
+    ...FIATS.map(f => ({ key: f.code, label: f.name, isCrypto: false, fiat: f.code })),
+  ];
+
+  allTargets.forEach(t => {
+    if (t.key === from) return; // sari peste moneda sursă
+    const val = convertFromUsd(usdVal, t.key);
+    const display = t.isCrypto ? fmtCrypto(val, t.symbol) : fmt(val, t.fiat);
+    const div = document.createElement("div");
+    div.className = "result-item";
+    div.innerHTML = `
+      <div class="result-label">${t.label}</div>
+      <div class="result-value">${display}</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+/* ====== LOAD ====== */
+async function loadAll(initial = false) {
+  if (initial) setStatus("Se încarcă prețuri…", "loading");
+  else setStatus("Actualizare…", "loading");
+  try {
+    const newPrices = await fetchPrices();
+    prices = newPrices;
+    // sparklines doar la prima încărcare (sau periodic mai rar)
+    if (initial || Object.keys(sparkData).length === 0) {
+      for (let i = 0; i < CRYPTOS.length; i++) {
+        const c = CRYPTOS[i];
+        try {
+          if (i > 0) await sleep(400); // pauză între cereri ca să nu lovim rate limit
+          sparkData[c.id] = await fetchSparkline(c.id);
+        } catch (e) {
+          console.warn("Sparkline failed for", c.id, e);
+          sparkData[c.id] = [];
+        }
+      }
+    }
+    renderCards();
+    renderMatrix();
+    renderConverter();
+    renderSplit();
+    const now = new Date().toLocaleTimeString("ro-RO");
+    setStatus("Live · ultima actualizare " + now, "");
+  } catch (e) {
+    console.error(e);
+    setStatus("Eroare conexiune: " + friendlyError(e), "error");
+  }
+}
+
+/* ====== SPLIT ====== */
+const ALL_CURRENCIES = [
+  ...CRYPTOS.map(c => ({ key: c.id, label: c.symbol + " — " + c.name, color: c.color, isCrypto: true, symbol: c.symbol })),
+  ...FIATS.map(f => ({ key: f.code, label: f.code.toUpperCase() + " — " + f.name, color: null, isCrypto: false, fiat: f.code })),
+];
+const SPLIT_COLORS = {
+  bitcoin: "#f7931a", ethereum: "#627eea", solana: "#14f195",
+  usd: "#22c55e", eur: "#5b8def", ron: "#ef4444",
+};
+
+let splits = [
+  { key: "ethereum", pct: 70 },
+  { key: "solana",   pct: 30 },
+];
+
+function getCurrencyLabel(key) {
+  const c = ALL_CURRENCIES.find(x => x.key === key);
+  return c ? c.label.split(" — ")[0] : key;
+}
+function getCurrencyMeta(key) {
+  return ALL_CURRENCIES.find(x => x.key === key);
+}
+
+function renderSplit() {
+  const amount = parseFloat(document.getElementById("splitAmount").value) || 0;
+  const from   = document.getElementById("splitFrom").value;
+  const usdTotal = getValueInUsd(from, amount);
+
+  // header — total source
+  const info = document.getElementById("splitSourceInfo");
+  if (usdTotal != null) {
+    info.textContent = "Valoare totală: " + fmt(usdTotal, "usd")
+      + " · " + fmt(convertFromUsd(usdTotal, "eur"), "eur")
+      + " · " + fmt(convertFromUsd(usdTotal, "ron"), "ron");
+  } else {
+    info.textContent = "Valoare totală: —";
+  }
+
+  // bară vizuală
+  const bar = document.getElementById("splitBar");
+  bar.innerHTML = "";
+  const totalPct = splits.reduce((s, x) => s + (parseFloat(x.pct) || 0), 0);
+  splits.forEach(s => {
+    const seg = document.createElement("div");
+    seg.className = "split-bar-seg";
+    seg.style.width = (parseFloat(s.pct) || 0) + "%";
+    seg.style.background = SPLIT_COLORS[s.key] || "#888";
+    seg.title = getCurrencyLabel(s.key) + " — " + s.pct + "%";
+    bar.appendChild(seg);
+  });
+  if (totalPct < 100) {
+    const empty = document.createElement("div");
+    empty.className = "split-bar-empty";
+    empty.style.width = (100 - totalPct) + "%";
+    bar.appendChild(empty);
+  }
+
+  // total indicator
+  const totalEl = document.getElementById("splitTotal");
+  const totalWrap = document.getElementById("splitTotalWrap");
+  totalEl.textContent = totalPct.toFixed(1) + "%";
+  totalWrap.classList.remove("ok", "err");
+  if (Math.abs(totalPct - 100) < 0.05) totalWrap.classList.add("ok");
+  else if (totalPct > 100) totalWrap.classList.add("err");
+
+  // randuri
+  const rowsEl = document.getElementById("splitRows");
+  rowsEl.innerHTML = "";
+  splits.forEach((s, idx) => {
+    const meta = getCurrencyMeta(s.key);
+    const pctNum = parseFloat(s.pct) || 0;
+    const allocUsd = usdTotal != null ? usdTotal * pctNum / 100 : null;
+    let displayVal = "—", displaySub = "";
+    if (allocUsd != null && prices) {
+      const targetVal = convertFromUsd(allocUsd, s.key);
+      if (meta?.isCrypto) {
+        displayVal = fmtCrypto(targetVal, meta.symbol);
+        displaySub = fmt(allocUsd, "usd");
+      } else {
+        displayVal = fmt(targetVal, meta.fiat);
+        if (meta.fiat !== "usd") displaySub = "≈ " + fmt(allocUsd, "usd");
+      }
+    }
+
+    const row = document.createElement("div");
+    row.className = "split-row";
+    row.innerHTML = `
+      <select data-idx="${idx}" class="split-select">
+        ${ALL_CURRENCIES.map(c => `<option value="${c.key}" ${c.key === s.key ? "selected" : ""}>${c.label.split(" — ")[0]}</option>`).join("")}
+      </select>
+      <input type="number" data-idx="${idx}" class="split-pct"
+             value="${pctNum}" min="0" max="100" step="0.1" />
+      <input type="range" data-idx="${idx}" class="split-slider"
+             value="${pctNum}" min="0" max="100" step="0.1" />
+      <div class="split-result">
+        <div class="split-result-val">${displayVal}</div>
+        <div class="split-result-sub">${displaySub}</div>
+      </div>
+      <button class="split-remove" data-idx="${idx}" title="Șterge">×</button>
+    `;
+    rowsEl.appendChild(row);
+  });
+
+  // listeners
+  rowsEl.querySelectorAll(".split-select").forEach(el => {
+    el.addEventListener("change", e => {
+      splits[+e.target.dataset.idx].key = e.target.value;
+      renderSplit();
+    });
+  });
+  rowsEl.querySelectorAll(".split-pct").forEach(el => {
+    el.addEventListener("input", e => {
+      splits[+e.target.dataset.idx].pct = parseFloat(e.target.value) || 0;
+      renderSplit();
+    });
+  });
+  rowsEl.querySelectorAll(".split-slider").forEach(el => {
+    el.addEventListener("input", e => {
+      splits[+e.target.dataset.idx].pct = parseFloat(e.target.value) || 0;
+      renderSplit();
+    });
+  });
+  rowsEl.querySelectorAll(".split-remove").forEach(el => {
+    el.addEventListener("click", e => {
+      splits.splice(+e.target.dataset.idx, 1);
+      renderSplit();
+    });
+  });
+
+  // re-randam graficul de performanță (debounced pentru slider)
+  schedulePerfRender();
+}
+
+let perfDebounceTimer = null;
+function schedulePerfRender() {
+  if (perfDebounceTimer) clearTimeout(perfDebounceTimer);
+  perfDebounceTimer = setTimeout(() => renderPerformance(), 250);
+}
+
+function addSplit() {
+  // alege prima moneda care nu e deja folosită
+  const used = new Set(splits.map(s => s.key));
+  const candidate = ALL_CURRENCIES.find(c => !used.has(c.key)) || ALL_CURRENCIES[0];
+  splits.push({ key: candidate.key, pct: 0 });
+  renderSplit();
+}
+function equalSplit() {
+  if (splits.length === 0) return;
+  const p = +(100 / splits.length).toFixed(2);
+  splits.forEach(s => s.pct = p);
+  // ajustare ultima sa fie exact 100
+  const sum = splits.reduce((a, b) => a + b.pct, 0);
+  splits[splits.length - 1].pct += +(100 - sum).toFixed(2);
+  renderSplit();
+}
+function normalizeSplit() {
+  const sum = splits.reduce((a, b) => a + (parseFloat(b.pct) || 0), 0);
+  if (sum <= 0) return equalSplit();
+  splits.forEach(s => s.pct = +(s.pct * 100 / sum).toFixed(2));
+  // corectare rounding pe ultima
+  const newSum = splits.reduce((a, b) => a + b.pct, 0);
+  splits[splits.length - 1].pct += +(100 - newSum).toFixed(2);
+  renderSplit();
+}
+
+/* ====== PERF CHART ====== */
+let perfRange = 7;            // zile
+let perfChart = null;
+let histCache = {};           // { "bitcoin-7": [[ts, price], ...] }
+let perfRenderToken = 0;      // anti race-condition
+
+async function loadHistory(coinId, days) {
+  const key = coinId + "-" + days;
+  if (histCache[key]) return histCache[key];
+
+  const sym = SYMBOL_MAP[coinId];
+  if (!sym) throw new Error("Symbol necunoscut pentru " + coinId);
+
+  // CryptoCompare: histohour pentru intervale scurte, histoday pentru lungi
+  let endpoint, limit;
+  if (days <= 1)       { endpoint = "histohour"; limit = 24;  }
+  else if (days <= 7)  { endpoint = "histohour"; limit = 168; }
+  else if (days <= 30) { endpoint = "histoday";  limit = 30;  }
+  else                 { endpoint = "histoday";  limit = days; }
+
+  const url = `${CC_BASE}/${endpoint}?fsym=${sym}&tsym=USD&limit=${limit}`;
+  const data = await safeFetch(url);
+
+  if (data.Response !== "Success" || !data.Data || !data.Data.Data) {
+    throw new Error(data.Message || "CryptoCompare răspuns invalid");
+  }
+  const prices = data.Data.Data
+    .filter(p => p.close > 0)
+    .map(p => [p.time * 1000, p.close]); // [[ts_ms, price_usd], ...]
+  histCache[key] = prices;
+  return prices;
+}
+
+function formatTick(ts, days) {
+  const d = new Date(ts);
+  if (days <= 1) return d.getHours().toString().padStart(2,"0") + ":" + d.getMinutes().toString().padStart(2,"0");
+  if (days <= 90) return d.toLocaleDateString("ro-RO", { day: "2-digit", month: "short" });
+  return d.toLocaleDateString("ro-RO", { month: "short", year: "2-digit" });
+}
+
+async function renderPerformance() {
+  const token = ++perfRenderToken;
+  const emptyEl = document.getElementById("perfEmpty");
+  const statsEl = document.getElementById("perfStats");
+  const statusEl = document.getElementById("perfStatus");
+  const canvas = document.getElementById("perfChart");
+
+  // doar crypto-uri (fiat e flat raportat la USD)
+  const cryptoSplits = splits.filter(s =>
+    CRYPTOS.some(c => c.id === s.key) && (parseFloat(s.pct) || 0) > 0
+  );
+
+  if (cryptoSplits.length === 0) {
+    emptyEl.style.display = "block";
+    canvas.style.display = "none";
+    statsEl.innerHTML = "";
+    statusEl.textContent = "";
+    if (perfChart) { perfChart.destroy(); perfChart = null; }
+    return;
+  }
+  emptyEl.style.display = "none";
+  canvas.style.display = "block";
+
+  statusEl.textContent = "Se încarcă istoric…";
+
+  // încarcă history pentru fiecare crypto (cu pauză între cereri)
+  const historyData = {};
+  try {
+    for (let i = 0; i < cryptoSplits.length; i++) {
+      const s = cryptoSplits[i];
+      const key = s.key + "-" + perfRange;
+      if (i > 0 && !histCache[key]) await sleep(400); // pauză doar dacă e cerere nouă
+      historyData[s.key] = await loadHistory(s.key, perfRange);
+      if (token !== perfRenderToken) return; // a venit alt request, abandonează
+    }
+  } catch (e) {
+    console.error(e);
+    statusEl.textContent = "Eroare istoric: " + friendlyError(e);
+    return;
+  }
+
+  // normalizează % față de start
+  const datasets = [];
+  const periodChanges = {};
+
+  cryptoSplits.forEach(s => {
+    const data = historyData[s.key];
+    if (!data || data.length === 0) return;
+    const startPrice = data[0][1];
+    const lastPrice  = data[data.length - 1][1];
+    const pctChange  = (lastPrice - startPrice) / startPrice * 100;
+    periodChanges[s.key] = pctChange;
+    const meta = getCurrencyMeta(s.key);
+    datasets.push({
+      label: meta.symbol + " (" + (parseFloat(s.pct).toFixed(1)) + "%)",
+      data: data.map(p => ({ x: p[0], y: (p[1] - startPrice) / startPrice * 100 })),
+      borderColor: SPLIT_COLORS[s.key],
+      backgroundColor: SPLIT_COLORS[s.key] + "11",
+      borderWidth: 2,
+      tension: 0.25,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      fill: false,
+    });
+  });
+
+  // portofoliu ponderat — interpolăm pe timestamps comune
+  // folosim timestamps din primul coin ca referință
+  const refSeries = historyData[cryptoSplits[0].key];
+  const totalPct = cryptoSplits.reduce((s, x) => s + (parseFloat(x.pct) || 0), 0) || 1;
+  const portfolioData = refSeries.map((point, idx) => {
+    const t = point[0];
+    let weightedReturn = 0;
+    cryptoSplits.forEach(s => {
+      const data = historyData[s.key];
+      if (!data || data.length === 0) return;
+      // găsim punctul cel mai apropiat ca timestamp (binary-ish, dar O(n) e ok)
+      let nearest = data[Math.min(idx, data.length - 1)];
+      if (Math.abs(nearest[0] - t) > 1000 * 60 * 60 * 6) {
+        // fallback liniar dacă seriile sunt nealiniate
+        nearest = data.reduce((a, b) => Math.abs(b[0] - t) < Math.abs(a[0] - t) ? b : a);
+      }
+      const start = data[0][1];
+      const pctRet = (nearest[1] - start) / start * 100;
+      const weight = (parseFloat(s.pct) || 0) / totalPct;
+      weightedReturn += pctRet * weight;
+    });
+    return { x: t, y: weightedReturn };
+  });
+
+  const portfolioLast = portfolioData[portfolioData.length - 1].y;
+
+  datasets.push({
+    label: "Portofoliu (mix)",
+    data: portfolioData,
+    borderColor: "#ffffff",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 3,
+    tension: 0.25,
+    pointRadius: 0,
+    pointHoverRadius: 5,
+    fill: true,
+    order: -1,
+  });
+
+  // stats cards
+  const entries = Object.entries(periodChanges);
+  const best  = entries.reduce((a, b) => b[1] > a[1] ? b : a, entries[0]);
+  const worst = entries.reduce((a, b) => b[1] < a[1] ? b : a, entries[0]);
+
+  statsEl.innerHTML = "";
+  // portofoliu
+  const upPortf = portfolioLast >= 0;
+  const portfStat = document.createElement("div");
+  portfStat.className = "perf-stat portfolio";
+  portfStat.style.borderLeftColor = "#fff";
+  portfStat.innerHTML = `
+    <div class="perf-stat-name">Portofoliu (mix)</div>
+    <div class="perf-stat-val ${upPortf ? "up" : "down"}">
+      ${upPortf ? "▲" : "▼"} ${Math.abs(portfolioLast).toFixed(2)}%
+    </div>
+    <div class="perf-stat-sub">Pe ultimele ${rangeLabel(perfRange)}</div>
+  `;
+  statsEl.appendChild(portfStat);
+
+  // monede individuale
+  cryptoSplits.forEach(s => {
+    const change = periodChanges[s.key] ?? 0;
+    const up = change >= 0;
+    const meta = getCurrencyMeta(s.key);
+    const div = document.createElement("div");
+    div.className = "perf-stat" + (s.key === best[0] ? " best" : "") + (s.key === worst[0] && best[0] !== worst[0] ? " worst" : "");
+    div.style.borderLeftColor = SPLIT_COLORS[s.key];
+    const badge = s.key === best[0] && best[1] > 0
+      ? '<span class="badge best">TOP</span>'
+      : (s.key === worst[0] && best[0] !== worst[0] && worst[1] < 0 ? '<span class="badge worst">SLAB</span>' : "");
+    div.innerHTML = `
+      <div class="perf-stat-name">${meta.symbol} · ${s.pct}%${badge}</div>
+      <div class="perf-stat-val ${up ? "up" : "down"}">
+        ${up ? "▲" : "▼"} ${Math.abs(change).toFixed(2)}%
+      </div>
+      <div class="perf-stat-sub">Pondere ${s.pct}%</div>
+    `;
+    statsEl.appendChild(div);
+  });
+
+  // render chart
+  if (perfChart) perfChart.destroy();
+  const ctx = canvas.getContext("2d");
+  perfChart = new Chart(ctx, {
+    type: "line",
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: "#e7ecf5", usePointStyle: true, padding: 14 },
+          position: "top",
+        },
+        tooltip: {
+          backgroundColor: "#0b0f1a",
+          borderColor: "#243049",
+          borderWidth: 1,
+          titleColor: "#e7ecf5",
+          bodyColor: "#e7ecf5",
+          padding: 10,
+          callbacks: {
+            title: (items) => {
+              const d = new Date(items[0].parsed.x);
+              return d.toLocaleString("ro-RO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+            },
+            label: (item) => item.dataset.label + ": " + (item.parsed.y >= 0 ? "+" : "") + item.parsed.y.toFixed(2) + "%",
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: "linear",
+          ticks: {
+            color: "#8a96b0",
+            maxTicksLimit: 8,
+            callback: (val) => formatTick(val, perfRange),
+          },
+          grid: { color: "rgba(255,255,255,0.04)" },
+        },
+        y: {
+          ticks: {
+            color: "#8a96b0",
+            callback: (val) => (val >= 0 ? "+" : "") + val.toFixed(1) + "%",
+          },
+          grid: { color: "rgba(255,255,255,0.06)" },
+        },
+      },
+    },
+  });
+
+  const now = new Date().toLocaleTimeString("ro-RO");
+  statusEl.textContent = "Actualizat " + now;
+}
+
+function rangeLabel(days) {
+  if (days === 1) return "24h";
+  if (days === 7) return "7 zile";
+  if (days === 30) return "30 zile";
+  if (days === 90) return "90 zile";
+  if (days === 365) return "1 an";
+  return days + " zile";
+}
+
+// invalidează cache-ul pe range curent o data la 5 min (sa includem date noi)
+setInterval(() => {
+  Object.keys(histCache).forEach(k => {
+    if (k.endsWith("-" + perfRange)) delete histCache[k];
+  });
+  renderPerformance();
+}, 5 * 60_000);
+
+/* ====== INIT ====== */
+document.getElementById("convAmount").addEventListener("input", renderConverter);
+document.getElementById("convFrom").addEventListener("change", renderConverter);
+document.getElementById("refreshBtn").addEventListener("click", () => loadAll(false));
+document.getElementById("splitAmount").addEventListener("input", renderSplit);
+document.getElementById("splitFrom").addEventListener("change", renderSplit);
+document.getElementById("addSplitBtn").addEventListener("click", addSplit);
+document.getElementById("equalSplitBtn").addEventListener("click", equalSplit);
+document.getElementById("normalizeBtn").addEventListener("click", normalizeSplit);
+document.getElementById("perfRanges").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-days]");
+  if (!btn) return;
+  document.querySelectorAll("#perfRanges button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  perfRange = parseInt(btn.dataset.days, 10);
+  renderPerformance();
+});
+
+loadAll(true);
+refreshTimer = setInterval(() => loadAll(false), REFRESH_MS);
+
+// reîmprospăteaza sparklines o data la 5 minute
+setInterval(async () => {
+  for (const c of CRYPTOS) {
+    try { sparkData[c.id] = await fetchSparkline(c.id); } catch(e) {}
+  }
+  renderCards();
+}, 5 * 60_000);
+</script>
+</body>
+</html>
